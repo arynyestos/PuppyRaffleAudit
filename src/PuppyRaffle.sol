@@ -26,6 +26,7 @@ contract PuppyRaffle is ERC721, Ownable {
     address public previousWinner;
 
     // We do some storage packing to save gas
+    // @audit: no packing in using an address type, perhaps should go one line below
     address public feeAddress;
     uint64 public totalFees = 0;
 
@@ -50,6 +51,7 @@ contract PuppyRaffle is ERC721, Ownable {
     string private constant LEGENDARY = "legendary";
 
     // Events
+    // @audit: arguments should be indexed
     event RaffleEnter(address[] newPlayers);
     event RaffleRefunded(address player);
     event FeeAddressChanged(address newFeeAddress);
@@ -97,7 +99,7 @@ contract PuppyRaffle is ERC721, Ownable {
         address playerAddress = players[playerIndex];
         require(playerAddress == msg.sender, "PuppyRaffle: Only the player can refund");
         require(playerAddress != address(0), "PuppyRaffle: Player already refunded, or is not active");
-
+        // @audit: function doesn't follo CEI, can be reentered
         payable(msg.sender).sendValue(entranceFee);
 
         players[playerIndex] = address(0);
@@ -113,7 +115,7 @@ contract PuppyRaffle is ERC721, Ownable {
                 return i;
             }
         }
-        return 0;
+        return 0; // @audit: this function will return index 0 for players that aren't in the raffle as well as for the first player in the array
     }
 
     /// @notice this function will select a winner and mint a puppy
@@ -125,6 +127,7 @@ contract PuppyRaffle is ERC721, Ownable {
     function selectWinner() external {
         require(block.timestamp >= raffleStartTime + raffleDuration, "PuppyRaffle: Raffle not over");
         require(players.length >= 4, "PuppyRaffle: Need at least 4 players");
+        // @audit: not a secure way to get a random number, can be predicted, use VRF
         uint256 winnerIndex =
             uint256(keccak256(abi.encodePacked(msg.sender, block.timestamp, block.difficulty))) % players.length;
         address winner = players[winnerIndex];
@@ -137,6 +140,8 @@ contract PuppyRaffle is ERC721, Ownable {
 
         // We use a different RNG calculate from the winnerIndex to determine rarity
         uint256 rarity = uint256(keccak256(abi.encodePacked(msg.sender, block.difficulty))) % 100;
+        // @audit: according to these conditionals the assigned rarity is: common, 0-70; rare, 71-95; legendary, 96-99
+        // rarity levels described are 0-69, 70-94, 95-99
         if (rarity <= COMMON_RARITY) {
             tokenIdToRarity[tokenId] = COMMON_RARITY;
         } else if (rarity <= COMMON_RARITY + RARE_RARITY) {
